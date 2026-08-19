@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分類連結導覽板</title>
+    <!-- 引入 SheetJS 解析 Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .header-card {
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+        }
+        h1 { margin: 0 0 10px 0; color: #1a73e8; font-size: 24px; }
+        .status-msg {
+            padding: 12px;
+            border-radius: 6px;
+            background-color: #e8f0fe;
+            color: #1967d2;
+            font-weight: 500;
+        }
+        .error-msg { background-color: #fce8e6; color: #c5221f; }
+        
+        /* 分類區塊樣式 */
+        .category-section {
+            background: #ffffff;
+            padding: 20px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+        }
+        .category-title {
+            font-size: 18px;
+            color: #3c4043;
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e8eaed;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .category-title::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background-color: #1a73e8;
+            border-radius: 2px;
+        }
+
+        /* 連結卡片網格 */
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .link-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background-color: #ffffff;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            text-align: center;
+            word-break: break-all;
+        }
+        .link-card:hover {
+            background-color: #1a73e8;
+            color: #ffffff;
+            border-color: #1a73e8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(26,115,232,0.2);
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        #countdown { font-weight: bold; color: #d93025; }
+    </style>
+</head>
+<body>
+
+    <div class="header-card">
+        <h1>常用連結導覽總覽</h1>
+        <div id="status" class="status-msg">⏳ 正在自動載入 links.xlsx...</div>
+        
+        <div class="controls" id="autoRedirectControl" style="display: none;">
+            <label>
+                <input type="checkbox" id="enableAutoRedirect"> 開啟第一個連結倒數自動跳轉
+            </label>
+            <span id="timerText" style="display: none;">（將於 <span id="countdown">5</span> 秒後跳轉）</span>
+        </div>
+    </div>
+
+    <!-- 動態生成分類區域容器 -->
+    <div id="categoryContainer"></div>
+
+    <script>
+        const EXCEL_FILE_PATH = './links.xlsx';
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadExcelFromDirectory(EXCEL_FILE_PATH);
+        });
+
+        async function loadExcelFromDirectory(filePath) {
+            const statusEl = document.getElementById('status');
+            
+            try {
+                const response = await fetch(filePath, { cache: 'no-store' });
+                
+                if (!response.ok) {
+                    throw new Error(`無法載入檔案，HTTP 狀態碼: ${response.status}`);
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                statusEl.style.display = 'none';
+                renderCategorizedLinks(jsonData);
+
+            } catch (error) {
+                console.error(error);
+                statusEl.className = 'status-msg error-msg';
+                statusEl.innerText = `❌ 讀取 Excel 失敗！請確認目錄下是否有 "${filePath.replace('./', '')}" 檔案。`;
+            }
+        }
+
+        function renderCategorizedLinks(data) {
+            const container = document.getElementById('categoryContainer');
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                alert('Excel 檔案內沒有資料！');
+                return;
+            }
+
+            // 1. 將 Excel 資料依「分類」欄位進行 Group By 整理
+            const categories = {};
+            let firstValidUrl = null;
+
+            data.forEach((row, index) => {
+                const category = row['分類'] || row['Category'] || '未分類';
+                const name = row['名稱'] || row['Name'] || `連結 ${index + 1}`;
+                let url = row['網址'] || row['Url'] || row['URL'];
+
+                if (url) {
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        url = 'https://' + url;
+                    }
+
+                    if (!firstValidUrl) firstValidUrl = url;
+
+                    if (!categories[category]) {
+                        categories[category] = [];
+                    }
+
+                    categories[category].push({ name, url });
+                }
+            });
+
+            // 2. 渲染各分類與對應卡片
+            Object.keys(categories).forEach(categoryName => {
+                const section = document.createElement('div');
+                section.className = 'category-section';
+
+                const title = document.createElement('h2');
+                title.className = 'category-title';
+                title.innerText = categoryName;
+                section.appendChild(title);
+
+                const grid = document.createElement('div');
+                grid.className = 'link-grid';
+
+                categories[categoryName].forEach(item => {
+                    const a = document.createElement('a');
+                    a.className = 'link-card';
+                    a.href = item.url;
+                    a.target = '_blank';
+                    a.innerText = item.name;
+                    grid.appendChild(a);
+                });
+
+                section.appendChild(grid);
+                container.appendChild(section);
+            });
+
+            // 3. 設定自動跳轉
+            if (firstValidUrl) {
+                document.getElementById('autoRedirectControl').style.display = 'flex';
+                setupAutoRedirect(firstValidUrl);
+            }
+        }
+
+        function setupAutoRedirect(targetUrl) {
+            const checkbox = document.getElementById('enableAutoRedirect');
+            const timerText = document.getElementById('timerText');
+            const countdownEl = document.getElementById('countdown');
+            let timerInterval = null;
+
+            checkbox.onchange = function () {
+                if (checkbox.checked && targetUrl) {
+                    let timeLeft = 5;
+                    countdownEl.innerText = timeLeft;
+                    timerText.style.display = 'inline';
+
+                    timerInterval = setInterval(() => {
+                        timeLeft--;
+                        countdownEl.innerText = timeLeft;
+                        if (timeLeft <= 0) {
+                            clearInterval(timerInterval);
+                            window.location.href = targetUrl;
+                        }
+                    }, 1000);
+                } else {
+                    if (timerInterval) clearInterval(timerInterval);
+                    timerText.style.display = 'none';
+                }
+            };
+        }
+    </script>
+</body>
+</html>
