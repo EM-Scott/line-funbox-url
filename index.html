@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>分類連結導覽板</title>
-    <!-- 引入 SheetJS 解析 Excel -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -104,7 +102,7 @@
 
     <div class="header-card">
         <h1>常用連結導覽總覽</h1>
-        <div id="status" class="status-msg">⏳ 正在自動載入 links.xlsx...</div>
+        <div id="status" class="status-msg">⏳ 正在自動載入 links.json...</div>
         
         <div class="controls" id="autoRedirectControl" style="display: none;">
             <label>
@@ -118,13 +116,13 @@
     <div id="categoryContainer"></div>
 
     <script>
-        const EXCEL_FILE_PATH = './links.xlsx';
+        const JSON_FILE_PATH = './links.json';
 
         window.addEventListener('DOMContentLoaded', () => {
-            loadExcelFromDirectory(EXCEL_FILE_PATH);
+            loadJsonFromDirectory(JSON_FILE_PATH);
         });
 
-        async function loadExcelFromDirectory(filePath) {
+        async function loadJsonFromDirectory(filePath) {
             const statusEl = document.getElementById('status');
             
             try {
@@ -134,13 +132,7 @@
                     throw new Error(`無法載入檔案，HTTP 狀態碼: ${response.status}`);
                 }
 
-                const arrayBuffer = await response.arrayBuffer();
-                const data = new Uint8Array(arrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
-
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                const jsonData = await response.json();
 
                 statusEl.style.display = 'none';
                 renderCategorizedLinks(jsonData);
@@ -148,7 +140,7 @@
             } catch (error) {
                 console.error(error);
                 statusEl.className = 'status-msg error-msg';
-                statusEl.innerText = `❌ 讀取 Excel 失敗！請確認目錄下是否有 "${filePath.replace('./', '')}" 檔案。`;
+                statusEl.innerText = `❌ 讀取 JSON 失敗！請確認目錄下是否有 "${filePath.replace('./', '')}" 檔案且格式正確。`;
             }
         }
 
@@ -156,12 +148,12 @@
             const container = document.getElementById('categoryContainer');
             container.innerHTML = '';
 
-            if (data.length === 0) {
-                alert('Excel 檔案內沒有資料！');
+            if (!Array.isArray(data) || data.length === 0) {
+                alert('JSON 檔案內沒有資料或格式非陣列！');
                 return;
             }
 
-            // 1. 將 Excel 資料依「分類」欄位進行 Group By 整理
+            // 1. 將 JSON 資料依「分類」欄位進行 Group By 整理
             const categories = {};
             let firstValidUrl = null;
 
