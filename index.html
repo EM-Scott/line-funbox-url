@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FunBox抽戰鬥陀螺囉～ (update by 20206.08.27)</title>
+    <title>FunBox抽戰鬥陀螺囉~</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -22,6 +22,14 @@
             margin-bottom: 25px;
         }
         h1 { margin: 0 0 10px 0; color: #1a73e8; font-size: 24px; }
+        .update-time {
+            font-size: 14px;
+            color: #5f6368;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
         .status-msg {
             padding: 12px;
             border-radius: 6px;
@@ -31,38 +39,69 @@
         }
         .error-msg { background-color: #fce8e6; color: #c5221f; }
         
-        /* 分類區塊樣式 */
-        .category-section {
+        /* 店家區塊樣式 */
+        .store-section {
             background: #ffffff;
             padding: 20px 25px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             margin-bottom: 25px;
         }
-        .category-title {
-            font-size: 18px;
-            color: #3c4043;
-            margin-top: 0;
+        .store-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             margin-bottom: 15px;
-            padding-bottom: 8px;
+            padding-bottom: 10px;
             border-bottom: 2px solid #e8eaed;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .store-title {
+            font-size: 20px;
+            color: #202124;
+            margin: 0;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .category-title::before {
+        .store-title::before {
             content: "";
             display: inline-block;
             width: 4px;
-            height: 18px;
+            height: 20px;
             background-color: #1a73e8;
             border-radius: 2px;
         }
 
-        /* 連結卡片網格 */
+        /* 社群 Icon 按鈕 */
+        .social-links {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .social-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            text-decoration: none;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        .social-btn:hover {
+            transform: scale(1.1);
+            opacity: 0.9;
+        }
+        .btn-line { background-color: #06C755; color: white; }
+        .btn-facebook { background-color: #1877F2; color: white; }
+        .social-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        /* 商品抽獎連結網格 */
         .link-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             gap: 15px;
         }
         .link-card {
@@ -70,14 +109,14 @@
             align-items: center;
             justify-content: center;
             padding: 14px;
-            background-color: #ffffff;
+            background-color: #f8f9fa;
             border: 1px solid #dadce0;
             border-radius: 8px;
             color: #1a73e8;
             text-decoration: none;
             font-weight: 600;
             transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
             text-align: center;
             word-break: break-all;
         }
@@ -101,22 +140,27 @@
 <body>
 
     <div class="header-card">
-        <h1>3~2~1 GO SHOOT!</h1>
+        <h1>FunBox抽戰鬥陀螺囉~</h1>
+        <div class="update-time">🕒 最後更新時間：<span id="lastUpdated">載入中...</span></div>
         <div id="status" class="status-msg">⏳ 正在自動載入 links.json...</div>
         
         <div class="controls" id="autoRedirectControl" style="display: none;">
             <label>
                 <input type="checkbox" id="enableAutoRedirect"> 開啟第一個連結倒數自動跳轉
             </label>
-            <span id="timerText" style="display: none;">（將於 <span id="countdown">15</span> 秒後跳轉）</span>
+            <span id="timerText" style="display: none;">（將於 <span id="countdown">5</span> 秒後跳轉）</span>
         </div>
     </div>
 
-    <!-- 動態生成分類區域容器 -->
+    <!-- 動態生成店家區域容器 -->
     <div id="categoryContainer"></div>
 
     <script>
         const JSON_FILE_PATH = './links.json';
+
+        // SVG 定義
+        const LINE_ICON = `<svg viewBox="0 0 24 24"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.412-.105-.53-.282l-2.434-3.522v3.147c0 .345-.281.63-.629.63-.348 0-.63-.285-.63-.63V8.108c0-.27.174-.51.432-.596.063-.021.133-.031.2-.031.211 0 .412.105.529.282l2.435 3.522V8.108c0-.345.282-.63.629-.63.348 0 .63.285.63.63v4.771zm-5.741 0c0 .345-.282.63-.63.63-.348 0-.63-.285-.63-.63V8.108c0-.345.282-.63.63-.63.348 0 .63.285.63.63v4.771zm-2.466.63H4.917c-.347 0-.63-.285-.63-.63V8.108c0-.345.283-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>`;
+        const FB_ICON = `<svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`;
 
         window.addEventListener('DOMContentLoaded', () => {
             loadJsonFromDirectory(JSON_FILE_PATH);
@@ -124,6 +168,7 @@
 
         async function loadJsonFromDirectory(filePath) {
             const statusEl = document.getElementById('status');
+            const lastUpdatedEl = document.getElementById('lastUpdated');
             
             try {
                 const response = await fetch(filePath, { cache: 'no-store' });
@@ -132,19 +177,37 @@
                     throw new Error(`無法載入檔案，HTTP 狀態碼: ${response.status}`);
                 }
 
+                // 讀取 HTTP Header 的 Last-Modified 時間
+                const lastModified = response.headers.get('Last-Modified');
+                if (lastModified) {
+                    const dateObj = new Date(lastModified);
+                    lastUpdatedEl.innerText = dateObj.toLocaleString('zh-TW', { hour12: false });
+                } else {
+                    lastUpdatedEl.innerText = '讀取成功';
+                }
+
                 const jsonData = await response.json();
 
                 statusEl.style.display = 'none';
-                renderCategorizedLinks(jsonData);
+                renderStores(jsonData);
 
             } catch (error) {
                 console.error(error);
+                lastUpdatedEl.innerText = '無法取得時間';
                 statusEl.className = 'status-msg error-msg';
                 statusEl.innerText = `❌ 讀取 JSON 失敗！請確認目錄下是否有 "${filePath.replace('./', '')}" 檔案且格式正確。`;
             }
         }
 
-        function renderCategorizedLinks(data) {
+        function formatUrl(url) {
+            if (!url) return '';
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                return 'https://' + url;
+            }
+            return url;
+        }
+
+        function renderStores(data) {
             const container = document.getElementById('categoryContainer');
             container.innerHTML = '';
 
@@ -153,57 +216,77 @@
                 return;
             }
 
-            // 1. 將 JSON 資料依「分類」欄位進行 Group By 整理
-            const categories = {};
             let firstValidUrl = null;
 
-            data.forEach((row, index) => {
-                const category = row['分類'] || row['Category'] || '未分類';
-                const name = row['名稱'] || row['Name'] || `連結 ${index + 1}`;
-                let url = row['網址'] || row['Url'] || row['URL'];
+            data.forEach(store => {
+                const storeSection = document.createElement('div');
+                storeSection.className = 'store-section';
 
-                if (url) {
-                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                        url = 'https://' + url;
-                    }
+                // 店家標題與社群 Icon
+                const storeHeader = document.createElement('div');
+                storeHeader.className = 'store-header';
 
-                    if (!firstValidUrl) firstValidUrl = url;
+                const storeTitle = document.createElement('h2');
+                storeTitle.className = 'store-title';
+                storeTitle.innerText = store.name || store.storeName || '未命名店家';
 
-                    if (!categories[category]) {
-                        categories[category] = [];
-                    }
+                const socialLinks = document.createElement('div');
+                socialLinks.className = 'social-links';
 
-                    categories[category].push({ name, url });
+                // LINE 連結
+                if (store.line) {
+                    const lineBtn = document.createElement('a');
+                    lineBtn.className = 'social-btn btn-line';
+                    lineBtn.href = formatUrl(store.line);
+                    lineBtn.target = '_blank';
+                    lineBtn.title = 'LINE 官方帳號';
+                    lineBtn.innerHTML = LINE_ICON;
+                    socialLinks.appendChild(lineBtn);
                 }
-            });
 
-            // 2. 渲染各分類與對應卡片
-            Object.keys(categories).forEach(categoryName => {
-                const section = document.createElement('div');
-                section.className = 'category-section';
+                // Facebook 連結
+                if (store.facebook || store.fb) {
+                    const fbUrl = store.facebook || store.fb;
+                    const fbBtn = document.createElement('a');
+                    fbBtn.className = 'social-btn btn-facebook';
+                    fbBtn.href = formatUrl(fbUrl);
+                    fbBtn.target = '_blank';
+                    fbBtn.title = 'Facebook 專頁';
+                    fbBtn.innerHTML = FB_ICON;
+                    socialLinks.appendChild(fbBtn);
+                }
 
-                const title = document.createElement('h2');
-                title.className = 'category-title';
-                title.innerText = categoryName;
-                section.appendChild(title);
+                storeHeader.appendChild(storeTitle);
+                storeHeader.appendChild(socialLinks);
+                storeSection.appendChild(storeHeader);
 
+                // 商品/抽獎連結卡片
                 const grid = document.createElement('div');
                 grid.className = 'link-grid';
 
-                categories[categoryName].forEach(item => {
-                    const a = document.createElement('a');
-                    a.className = 'link-card';
-                    a.href = item.url;
-                    a.target = '_blank';
-                    a.innerText = item.name;
-                    grid.appendChild(a);
+                const linksList = store.links || store.items || [];
+
+                linksList.forEach(item => {
+                    const name = item.name || item.title || '活動連結';
+                    const url = formatUrl(item.url);
+
+                    if (url) {
+                        if (!firstValidUrl) firstValidUrl = url;
+
+                        const a = document.createElement('a');
+                        a.className = 'link-card';
+                        a.href = url;
+                        a.target = '_blank';
+                        a.innerText = name;
+                        grid.appendChild(a);
+                    }
                 });
 
-                section.appendChild(grid);
-                container.appendChild(section);
+                storeSection.appendChild(grid);
+                container.appendChild(storeSection);
             });
 
-            // 3. 設定自動跳轉
+            // 設定自動跳轉
             if (firstValidUrl) {
                 document.getElementById('autoRedirectControl').style.display = 'flex';
                 setupAutoRedirect(firstValidUrl);
